@@ -1,0 +1,248 @@
+---
+title: "BellaBeat Report"
+author: "TZ"
+date: "7/5/2021"
+output:
+  html_document: default
+  pdf_document: default
+---
+## Description of Problem
+#### The client, BellaBeat, is a high tech manufacturer of health focused products for women. The company is small, but growing rapidly, with the potential to be a global player in the smart device industry. The founder, Urška Sršen, would like an analysis of smart device usage data from non-Bellabeat deivces to gain insights and information that can be used guide the marketing strategy for the company.The insights gained will be applied to the marketing strategy for one existing BellaBeat product.
+
+
+## Data
+#### The data being used is a public data set, "Fitbit Fitness Tracker Data", made available through Mobius. The dataset contains personal fitness tracker information from thirty consenting fitbit users. The information includes minute-level output for physical activity, heart rate, and sleep monitoring. It includes information about daily activity, steps, and heart rate that can be used to explore users’ habits. We will examine the data, see what relationships exist between the different variables, and use these insights to produce recommendations for the marketing team. R will be the tool of choice for this project.
+
+# Install packages and load data
+Let us install the necessary R packages. We will be using tidyverse for its data cleaning and analysis capabilities,ggpubr for our visualizations and "corrplot" to help us see the correlation between variables.
+```{r echo=TRUE}
+
+install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+install.packages("ggpubr", repos = "http://cran.us.r-project.org")
+install.packages("corrplot", repos = "http://cran.us.r-project.org")
+
+
+library(tidyverse)
+library(ggpubr)
+library(corrplot)
+```
+
+Next we will begin loading our data into R:
+```{r}
+sleep=read.csv("sleepDay_merged.csv")
+activity=read.csv("dailyActivity_merged.csv")
+```
+We will take a quick look at the datasets to get an idea of what our data looks like:
+
+```{r}
+summary(sleep)
+summary(activity)
+```
+
+The sleep data set contains information on the total minutes an individual spent asleep on a particular day, as well as the total minutes they spent in bed.
+The activity data contains physical activity information on different days for different individuals, including total steps taken, total distance covered, minutes spent engaging in physical activity of different intensities, minutes spent being sedentary and calories burned in a day.
+
+We will now clean the data, to remove any NA and Null values as well as check for any negative values. A negative value wouldn't make sense when we are tracking metrics like minutes or calories.
+
+
+```{r}
+cleaned_activity=activity %>% 
+  select(Id,ActivityDate,TotalSteps,TotalDistance,VeryActiveMinutes,FairlyActiveMinutes,LightlyActiveMinutes,SedentaryMinutes,Calories)
+which(is.na(cleaned_activity))
+which(is.null(cleaned_activity))
+sum(cleaned_activity<0)
+
+
+cleaned_sleep= sleep %>% 
+  select(Id,SleepDay,TotalMinutesAsleep)
+
+which(is.na(cleaned_sleep))
+which(is.null(cleaned_sleep))
+sum(cleaned_sleep<0)
+```
+In order to begin our analysis, we will merge the two cleaned dataframes, activity and sleep, into a single dataframe.
+
+```{r}
+sleep_and_activity=merge(cleaned_sleep,cleaned_activity, by.x ="Id")
+sleep_and_activity=mutate(sleep_and_activity,TotalActiveMinutes=(VeryActiveMinutes+FairlyActiveMinutes+LightlyActiveMinutes))
+analysis_variables=select(sleep_and_activity,TotalDistance,VeryActiveMinutes,FairlyActiveMinutes,LightlyActiveMinutes,TotalMinutesAsleep,TotalSteps,Calories,TotalActiveMinutes)
+
+```
+Looking at our new, merged data frame, everything looks good and we are ready to begin our analysis
+
+## Analysis and Visualization 
+To begin analyzing our data, we will use a correlation matrix, which displays the correlation coefficient between variables. Correlation is a statistical technique used to measure to what extent two variables are dependent on each other. A correlation coefficient is used to numerically measure the strength and direction of the relationship between two variables. The possible correlation values range from -1 to +1. -1 indicates there is a strong, negative relationship between the variables (as one increases, the other decreases). +1 indicates there is a strong, positive relationship between the variables(as one increases, the other increases). A correlation of 0 indicates there is no relationship. For this analysis, we will be using the pearson correlation coefficient.
+
+We will use the cor() function of the "stats" package to produce our correlation matrix, and we will then visualize that same matrix using the corrplot() function for the "corrplot" package.
+
+```{r}
+mcor=cor(analysis_variables)
+round(mcor,digits = 2)
+
+corrplot(mcor, method="number")
+```
+
+
+Looking at our correlation matrix, let us begin by examining the intensity level of activity and how that relates to the number of calories burned.
+
+
+```{r}
+#Very Active Minutes vs Calories
+
+ggscatter(analysis_variables, x = "VeryActiveMinutes", y = "Calories",
+          
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          add.params = list(color = "black",
+                            fill = "red"),
+          title = "Relationship between very active minutes VS.Calories Burned in a Day",
+          xlab = "Very active minutes (in a day)", ylab = "Calories burned during the day")
+```
+A scatter plot is used to study the relationship between two numeric variables. For each data point, the value of the first variable is represent on the X-axis(horizontal) and the second variable is represented on the Y-axis(vertical).
+
+Our correlation coefficient for these two variables is 0.62, which indicates there is a moderately strong positive relationship. The p value represents the probability that the observed correlation between x and y in our data is due to chance. A p value less than .001 means that we can have strong certainty that the correlation is not due to chance, and is statistically significant.
+
+Based on the above, an individual trying to burn more calories should increase the amount of very active minutes they have in a day.
+
+Next let us look at the relationship between calories burned in a day compared to both fairly active minutes and lightly active minutes.
+
+```{r}
+#Fairly Active Minutes vs Calories
+ggscatter(analysis_variables, x = "FairlyActiveMinutes", y = "Calories",
+          
+          conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          add.params = list(color = "black",
+                            fill = "red"),
+          title = "Relationship between fairly active minutes VS. Calories Burned in a Day",
+          xlab = "Fairly active minutes (in a day)", ylab = "Calories burned during the day")
+```
+
+```{r}
+#Lightly Active Minutes vs Calories
+ggscatter(analysis_variables, x = "LightlyActiveMinutes", y = "Calories",
+          
+          conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          add.params = list(color = "black",
+                            fill = "yellow"),
+          title = "Relationship between Lightly active minutes VS. Calories Burned in a Day",
+          xlab = "Lightly active minutes (in a day)", ylab = "Calories Burned in a Day")
+
+```
+
+There is a very weak relationship between calories burned in a day and both fairly active minutes and lightly active minutes.
+
+Based on the above, the intensity of the physical activity matters for a person trying to burn more calories. Thus, an individual should focus on having more very active minutes in a day if they are trying to burn more calories.
+
+
+Now we will examine which is more beneficial for burning calories- very active minutes, or total active minutes in a day?
+
+```{r}
+#Total Active Minutes vs Calories
+ggscatter(analysis_variables, x = "TotalActiveMinutes", y = "Calories",
+          
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          add.params = list(color = "black",
+                            fill = "red"),
+          title = "Relationship between Total active minutes VS. Calories Burned in a Day",
+          xlab = "Total active minutes (in a day)", ylab = "Calories burned during the day")
+```
+
+Looking at the plot, the coefficient of correlation is 0.42, indicating there is a moderately strong relationship between total active minutes in a day and calories burned in a day. However, the correlation between very active minutes in a day and calories burned had a stronger coefficient of correlation at 0.62, suggesting that it is more beneficial to focus on the intensity of the physical activity (very active) vs. the total amount of minutes one is physically active.
+
+## Steps vs Calories
+
+Steps is often a popular metric to use when people are trying to lose weight and get in shape. Let us examine the relationship between steps taken in a day and calories burned.
+```{r}
+ggscatter(analysis_variables, x = "TotalSteps", y = "Calories",
+          
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          add.params = list(color = "black",
+                            fill = "red"),
+          title = "Total Steps taken in a day VS. Calories Burned in a Day",
+          xlab = "Total Steps Taken (in a day)", ylab = "Calories burned during the day")
+
+```
+Examining our scatter plot, there is a correlation coefficient of 0.45, and so there is indeed a moderately strong relationship between steps taken during a day and calories burned in a day. However, there is a stronger relationship between very active minutes in a day and calories burned in a day, indicating that an indivudal trying to burn more calories and lose more weight should focus less on steps taken and more on the intensity of their physical activity.
+
+
+### Sleep vs Calories
+
+For the next seciton of our analysis, we will be examining what relationship, if any, exists between the Total Minutes of Sleep an individual gets vs the calories burned during a day.
+
+Looking at our correlation matrix again, we can see there is a correlation coefficient of 0.2 between the two variables, indicating there is almost no direct relationship between them.
+
+```{r}
+sleep_calories=select(analysis_variables,TotalMinutesAsleep,Calories)
+mcor=cor(sleep_calories)
+round(mcor,digits = 2)
+```
+Let us examine the variables another way. First, let us create 3 intervals to categorize Total Minutes Asleep: less than 6 hours of sleep, 6-8 hours of sleep and greater than 8 hours of sleep.
+
+We will begin by filtering our sleep/calories data frame to look at only the entries where an individual slept less than 6 hours of sleep:
+
+```{r}
+sleep_6_or_less=filter(sleep_calories,TotalMinutesAsleep<=359)
+```
+
+
+We will now look at the average calories burned for those indivudals who sleep less than 6 hours:
+
+```{r}
+mean(sleep_6_or_less$Calories)
+```
+
+We will repeat this process for the range of 6-8 hours of sleep:
+```{r}
+sleep_6_to_8=sleep_calories %>% filter(between(TotalMinutesAsleep,360,480))
+mean(sleep_6_to_8$Calories)
+
+```
+And a final time for the range of more than 8 hours of sleep:
+```{r}
+sleep_8_or_more=sleep_calories %>% filter(TotalMinutesAsleep>480)
+mean(sleep_8_or_more$Calories)
+```
+
+Next we will create a new data frame which stores the information we just calculated:
+```{r}
+##create data table with sleep and avg calories
+Hours_of_sleep <- c("0-6 hours", "6-8 hours","8+ hours")
+Average_Calories_burned <- c("2163.159", "2456.543", "2255.347")
+sleep_avg_calories <- data.frame(Hours_of_sleep,Average_Calories_burned)
+```
+
+We will now visualize our new data frame using a column chart, which is used for comparing one categorical variable(range of hours of sleep) to one numerical variable(average calories burned)
+
+```{r}
+ggplot(data=sleep_avg_calories)+ 
+  geom_col(mapping=aes(x = Hours_of_sleep, y = Average_Calories_burned,fill=Average_Calories_burned))+ 
+ labs(title="Amount of Sleep vs. Average Calories Burned",
+       x = "Amount of Sleep", y="Average Number of Calories Burned",fill="Avg Calories Burned")
+```
+From the visualization, we can see that individuals who sleep 6-8 hours burn more calories, on average, than both those who sleep less than 6 hours and those who sleep more than 8 hours. So the optimal amount of sleep a person who is trying to lose weight should shoot for is the range of 6-8 hours of sleep.
+
+# Results and Discussion
+
+The goal of this project was to analyze smart device fitness data and see what insights could be acquired and applied to the Bellabeat marketing strategy. We began looking at how different variables were related to calories burned. We first examined the intensity of the workout compared to calories burned in a day and found that there is a stronger correlation between very active minutes and calories burned than compared to fairly active minutes and lightly active minutes. 
+We then looked at the relationship between total active minutes and calories burned as well as total steps taken in a day vs calories burned. While there was a moderately strong relationship between these variables, the strongest correlation coefficient was observed between very active minutes in a day and calories burned. This suggests that those looking to burn more calories and lose more weight should focus on the intensity of the workout, aiming for more very active minutes, as opposed to focusing on steps taken, total active minutes in a day, or lower intensity activity.
+
+For the next part of our analysis, we looked at the relationship between total minutes asleep and calories burned. While there is almost no direct relationship between the two variables according to our correlation matrix, we explored the two variables using a column chart. We broke down "Total Minutes Asleep" into 3 categories: 0-6 hours of sleep, 6-8 hours of sleep and greater than 8 hours of sleep. We then looked at the average amount of calories burned for each category and found that those who sleep 6-8 hours burned more calories, on average, than both those who slept less than 6 hours or more than 8 hours. There is surprisingly no benefit from sleeping more than 8 hours, and those looking to burn the most possible calories should aim for 6-8 hours of sleep a night.
+
+
+# Recommendations
+-The conclusions above can be applied to the marketing strategy of the BellaBeat Leaf. The Leaf tracks physical activity and sleep. When advertising the Leaf, the marketing team should focus on how the Leaf can help make sure an individual is engaging in enough physical activity of the right intensity(very active minutes), in order to optimize their calories burned and meet their weight loss goals. 
+
+-Getting the appropriate amount of sleep(6-8 hours) is also important to optimize calorie burning potential. The marketing team should also focus on how the Leaf can help an individual monitor their sleep, in order to further their weight loss and calorie burning goals.
+# Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
